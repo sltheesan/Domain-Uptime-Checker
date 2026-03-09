@@ -19,5 +19,12 @@ export const monitoringService = {
   async getHistory(brandId) {
     const response = await api.get(`/monitoring/history/${brandId}`);
     return response.data;
+  },
+
+  async resolveVisitUrl(url) {
+    const response = await api.get("/monitoring/resolve-visit-url", {
+      params: { url }
+    });
+    return response.data;
   }
 };

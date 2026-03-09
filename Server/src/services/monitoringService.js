@@ -1,4 +1,5 @@
 import path from "path";
+import fs from "fs/promises";
 import Brand from "../models/Brand.js";
 import Domain from "../models/Domain.js";
 import ScreenshotLog from "../models/ScreenshotLog.js";
@@ -23,13 +24,14 @@ export const getOrCreateSettings = async () => {
 export const getDashboardData = async () => {
   const brands = await Brand.find({})
     .populate("activeDomain")
+    .populate("candidateDomains")
     .sort({ createdAt: -1 });
 
   const summary = {
     totalBrands: brands.length,
     healthyCount: brands.filter((b) => b.lastStatus === "live").length,
     blockedCount: brands.filter((b) =>
-      ["blocked", "dead", "error", "timeout"].includes(b.lastStatus)
+      ["blocked", "dead", "error"].includes(b.lastStatus)
     ).length,
     monitoringEnabledCount: brands.filter((b) => b.monitoringEnabled).length
   };
@@ -59,11 +61,23 @@ export const monitorSingleBrand = async (brand) => {
     storagePath
   });
 
+  const previousScreenshot = brand.lastScreenshot || "";
+
   brand.lastStatus = result.status;
   brand.lastCheckedAt = new Date();
   brand.lastScreenshot = result.relativePath || brand.lastScreenshot || "";
   brand.updatedAt = new Date();
   await brand.save();
+
+  if (
+    result.relativePath &&
+    previousScreenshot &&
+    previousScreenshot !== result.relativePath
+  ) {
+    const previousFileName = path.basename(previousScreenshot);
+    const previousFilePath = path.resolve(storagePath, previousFileName);
+    await fs.unlink(previousFilePath).catch(() => {});
+  }
 
   const domain = await Domain.findById(brand.activeDomain._id);
 
@@ -71,7 +85,7 @@ export const monitorSingleBrand = async (brand) => {
     domain.lastKnownHealth = result.status;
     domain.lastCheckAt = new Date();
 
-    if (["blocked", "dead", "error", "timeout"].includes(result.status)) {
+    if (["blocked", "dead", "error"].includes(result.status)) {
       domain.status = "blocked";
     } else if (domain.assignedBrand) {
       domain.status = "assigned";

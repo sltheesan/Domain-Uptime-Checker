@@ -5,6 +5,7 @@ import { domainService } from "../features/domains/domainService";
 import { monitoringService } from "../features/monitoring/monitoringService";
 import { useAuth } from "../hooks/useAuth";
 import { useSocket } from "../hooks/useSocket";
+import BrandBadge from "../components/common/BrandBadge";
 
 function BrandDetailsPage() {
   const { id } = useParams();
@@ -21,7 +22,7 @@ function BrandDetailsPage() {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState("");
-  const [selectedDomainId, setSelectedDomainId] = useState("");
+  const [selectedAvailableDomainId, setSelectedAvailableDomainId] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
 
@@ -86,19 +87,19 @@ function BrandDetailsPage() {
     };
   }, [socket, id]);
 
-  const handleAssign = async () => {
-    if (!selectedDomainId) {
+  const handleAddDomain = async () => {
+    if (!selectedAvailableDomainId) {
       alert("Select a domain first.");
       return;
     }
 
     try {
       setActionLoading(true);
-      await domainService.assignDomainToBrand(selectedDomainId, id);
-      setSelectedDomainId("");
+      await domainService.addDomainToBrand(selectedAvailableDomainId, id);
+      setSelectedAvailableDomainId("");
       await loadPage();
     } catch (error) {
-      alert(error?.response?.data?.message || "Failed to assign domain.");
+      alert(error?.response?.data?.message || "Failed to add domain.");
     } finally {
       setActionLoading(false);
     }
@@ -123,24 +124,27 @@ function BrandDetailsPage() {
     }
   };
 
-  const handleReplace = async () => {
+  const handleSetActiveDomain = async (newDomainId) => {
     if (!brand?.activeDomain?._id) {
-      alert("No current active domain to replace.");
+      alert("No active domain is set yet.");
       return;
     }
 
-    if (!selectedDomainId) {
-      alert("Select a replacement domain first.");
+    if (!newDomainId) {
+      alert("Select a linked domain first.");
+      return;
+    }
+
+    if (String(newDomainId) === String(brand.activeDomain._id)) {
       return;
     }
 
     try {
       setActionLoading(true);
-      await domainService.replaceDomain(brand.activeDomain._id, selectedDomainId);
-      setSelectedDomainId("");
+      await domainService.setActiveDomain(brand.activeDomain._id, newDomainId);
       await loadPage();
     } catch (error) {
-      alert(error?.response?.data?.message || "Failed to replace domain.");
+      alert(error?.response?.data?.message || "Failed to set active domain.");
     } finally {
       setActionLoading(false);
     }
@@ -173,13 +177,24 @@ function BrandDetailsPage() {
     ? `${imageBase}${brand.lastScreenshot}`
     : "";
 
+  const linkedDomainMap = new Map();
+  if (Array.isArray(brand.candidateDomains)) {
+    brand.candidateDomains.forEach((domain) => {
+      if (domain?._id) linkedDomainMap.set(String(domain._id), domain);
+    });
+  }
+  if (brand.activeDomain?._id) {
+    linkedDomainMap.set(String(brand.activeDomain._id), brand.activeDomain);
+  }
+  const linkedDomains = Array.from(linkedDomainMap.values());
+
   return (
     <div>
       <div className="page-header">
         <div>
           <h2>{brand.name}</h2>
           <p>
-            Brand code: <strong>{brand.code}</strong>
+            Brand code: <BrandBadge code={brand.code} />
           </p>
         </div>
 
@@ -275,18 +290,18 @@ function BrandDetailsPage() {
         </div>
 
         <div className="form-card">
-          <h3 className="section-title">Replace / Assign Domain</h3>
+          <h3 className="section-title">Brand Domains</h3>
 
           {!canManage ? (
             <div className="empty-state">You have view-only access.</div>
           ) : (
             <>
               <label className="field">
-                <span>Select Available Domain</span>
+                <span>Add Available Domain To Brand</span>
                 <select
                   className="select-input"
-                  value={selectedDomainId}
-                  onChange={(e) => setSelectedDomainId(e.target.value)}
+                  value={selectedAvailableDomainId}
+                  onChange={(e) => setSelectedAvailableDomainId(e.target.value)}
                 >
                   <option value="">Choose a domain</option>
                   {availableDomains.map((domain) => (
@@ -298,37 +313,44 @@ function BrandDetailsPage() {
               </label>
 
               <div className="actions-row">
-                {!brand.activeDomain ? (
-                  <button
-                    className="btn btn-primary"
-                    onClick={handleAssign}
-                    disabled={actionLoading}
-                  >
-                    {actionLoading ? "Assigning..." : "Assign Domain"}
-                  </button>
-                ) : (
-                  <button
-                    className="btn btn-primary"
-                    onClick={handleReplace}
-                    disabled={actionLoading}
-                  >
-                    {actionLoading ? "Replacing..." : "Replace Current Domain"}
-                  </button>
-                )}
+                <button
+                  className="btn btn-primary"
+                  onClick={handleAddDomain}
+                  disabled={actionLoading}
+                >
+                  {actionLoading ? "Adding..." : "Add Domain"}
+                </button>
               </div>
 
               <div className="page-section">
-                <h4 className="mini-title">Available Domains</h4>
+                <h4 className="mini-title">Linked Domains (One Active)</h4>
                 <div className="available-list">
-                  {availableDomains.length ? (
-                    availableDomains.slice(0, 30).map((domain) => (
+                  {linkedDomains.length ? (
+                    linkedDomains.map((domain) => (
                       <div key={domain._id} className="available-item">
-                        <span>{domain.domain}</span>
-                        <small>{domain.protocol}</small>
+                        <span>
+                          {domain.domain}
+                          {brand?.activeDomain?._id && String(brand.activeDomain._id) === String(domain._id)
+                            ? " (ACTIVE)"
+                            : ""}
+                        </span>
+                        <div className="actions-row">
+                          <small>{domain.protocol}</small>
+                          {brand?.activeDomain?._id &&
+                            String(brand.activeDomain._id) !== String(domain._id) && (
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => handleSetActiveDomain(domain._id)}
+                                disabled={actionLoading}
+                              >
+                                Set Active
+                              </button>
+                            )}
+                        </div>
                       </div>
                     ))
                   ) : (
-                    <div className="empty-state">No available domains found.</div>
+                    <div className="empty-state">No linked domains yet.</div>
                   )}
                 </div>
               </div>

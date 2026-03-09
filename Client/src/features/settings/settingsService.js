@@ -9,5 +9,10 @@ export const settingsService = {
   async updateSettings(payload) {
     const response = await api.patch("/settings", payload);
     return response.data;
+  },
+
+  async syncCheckerDomains() {
+    const response = await api.post("/settings/sync");
+    return response.data;
   }
 };

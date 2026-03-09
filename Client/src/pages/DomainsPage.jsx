@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { domainService } from "../features/domains/domainService";
 import { useAuth } from "../hooks/useAuth";
+import { brandService } from "../features/brands/brandService";
 
 function DomainsPage() {
   const { user } = useAuth();
@@ -10,6 +11,7 @@ function DomainsPage() {
   );
 
   const [domains, setDomains] = useState([]);
+  const [brands, setBrands] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tableError, setTableError] = useState("");
   const [formError, setFormError] = useState("");
@@ -23,6 +25,7 @@ function DomainsPage() {
   const [form, setForm] = useState({
     domain: "",
     protocol: "https",
+    brandId: "",
     notes: ""
   });
 
@@ -49,7 +52,17 @@ function DomainsPage() {
 
   useEffect(() => {
     fetchDomains();
+    fetchBrands();
   }, []);
+
+  const fetchBrands = async () => {
+    try {
+      const data = await brandService.getBrands();
+      setBrands(data.brands || []);
+    } catch {
+      setBrands([]);
+    }
+  };
 
   const handleFilterChange = (e) => {
     setFilters((prev) => ({
@@ -85,6 +98,7 @@ function DomainsPage() {
       setForm({
         domain: "",
         protocol: "https",
+        brandId: "",
         notes: ""
       });
       await fetchDomains();
@@ -164,6 +178,23 @@ function DomainsPage() {
                 >
                   <option value="https">https</option>
                   <option value="http">http</option>
+                </select>
+              </label>
+
+              <label className="field">
+                <span>Brand (Optional)</span>
+                <select
+                  className="select-input"
+                  name="brandId"
+                  value={form.brandId}
+                  onChange={handleFormChange}
+                >
+                  <option value="">Unassigned</option>
+                  {brands.map((brand) => (
+                    <option key={brand._id} value={brand._id}>
+                      {brand.code} - {brand.name}
+                    </option>
+                  ))}
                 </select>
               </label>
 

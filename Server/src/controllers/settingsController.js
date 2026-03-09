@@ -1,6 +1,7 @@
 import { restartScheduler } from "../jobs/scheduler.js";
 import { getOrCreateSettings } from "../services/monitoringService.js";
 import { createAuditLog } from "../services/auditService.js";
+import { syncDomainsFromCheckerApi } from "../services/checkerSyncService.js";
 
 export const getSettings = async (req, res) => {
   try {
@@ -59,6 +60,31 @@ export const updateSettings = async (req, res) => {
     console.error("updateSettings error:", error);
     return res.status(500).json({
       message: "Failed to update settings."
+    });
+  }
+};
+
+export const syncCheckerDomains = async (req, res) => {
+  try {
+    const summary = await syncDomainsFromCheckerApi({
+      userId: req.user?._id || null
+    });
+
+    await createAuditLog({
+      userId: req.user?._id,
+      action: "SYNC_CHECKER_DOMAINS",
+      entityType: "Setting",
+      details: summary
+    });
+
+    return res.status(200).json({
+      message: "Checker sync completed successfully.",
+      summary
+    });
+  } catch (error) {
+    console.error("syncCheckerDomains error:", error);
+    return res.status(500).json({
+      message: error?.message || "Failed to sync checker domains."
     });
   }
 };
