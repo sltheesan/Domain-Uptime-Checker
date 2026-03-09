@@ -43,7 +43,7 @@ export const getAvailableDomains = async (req, res) => {
 
 export const createDomain = async (req, res) => {
   try {
-    const { domain, protocol, notes } = req.body || {};
+    const { domain, protocol, notes, brandId } = req.body || {};
 
     if (!domain) {
       return res.status(400).json({
@@ -67,6 +67,22 @@ export const createDomain = async (req, res) => {
       });
     }
 
+    let brand = null;
+    if (brandId) {
+      if (!mongoose.Types.ObjectId.isValid(brandId)) {
+        return res.status(400).json({
+          message: "Invalid brand ID."
+        });
+      }
+
+      brand = await Brand.findById(brandId);
+      if (!brand) {
+        return res.status(404).json({
+          message: "Brand not found."
+        });
+      }
+    }
+
     const created = await Domain.create({
       domain: normalized,
       protocol: protocol === "http" ? "http" : "https",
@@ -75,6 +91,28 @@ export const createDomain = async (req, res) => {
       updatedBy: req.user?._id || null
     });
 
+    if (brand) {
+      created.assignedBrand = brand._id;
+      created.status = brand.activeDomain ? "inactive" : "assigned";
+      created.updatedBy = req.user?._id || null;
+      await created.save();
+
+      if (!brand.activeDomain) {
+        brand.activeDomain = created._id;
+      }
+      brand.candidateDomains = brand.candidateDomains || [];
+      if (!brand.candidateDomains.some((item) => String(item) === String(created._id))) {
+        brand.candidateDomains.push(created._id);
+      }
+      brand.updatedBy = req.user?._id || null;
+      await brand.save();
+    }
+
+    const createdWithBrand = await Domain.findById(created._id).populate(
+      "assignedBrand",
+      "name code"
+    );
+
     await createAuditLog({
       userId: req.user?._id,
       action: "CREATE_DOMAIN",
@@ -82,13 +120,15 @@ export const createDomain = async (req, res) => {
       entityId: created._id,
       details: {
         domain: created.domain,
-        protocol: created.protocol
+        protocol: created.protocol,
+        brandId: brand?._id || null,
+        brandName: brand?.name || null
       }
     });
 
     return res.status(201).json({
       message: "Domain created successfully.",
-      domain: created
+      domain: createdWithBrand
     });
   } catch (error) {
     console.error("createDomain error:", error);
@@ -133,7 +173,7 @@ export const updateDomain = async (req, res) => {
 
     if (
       lastKnownHealth &&
-      ["live", "blocked", "timeout", "dead", "error", "unknown"].includes(lastKnownHealth)
+      ["live", "blocked", "dead", "error"].includes(lastKnownHealth)
     ) {
       domain.lastKnownHealth = lastKnownHealth;
     }
@@ -307,23 +347,23 @@ export const assignDomainToBrand = async (req, res) => {
       });
     }
 
-    if (domain.assignedBrand) {
+    if (domain.assignedBrand && String(domain.assignedBrand) !== String(brand._id)) {
       return res.status(400).json({
-        message: "Domain is already assigned to a brand."
-      });
-    }
-
-    if (brand.activeDomain) {
-      return res.status(400).json({
-        message: "Brand already has an active domain."
+        message: "Domain is already assigned to another brand."
       });
     }
 
     domain.assignedBrand = brand._id;
-    domain.status = "assigned";
+    domain.status = brand.activeDomain ? "inactive" : "assigned";
     domain.updatedBy = req.user?._id || null;
 
-    brand.activeDomain = domain._id;
+    if (!brand.activeDomain) {
+      brand.activeDomain = domain._id;
+    }
+    brand.candidateDomains = brand.candidateDomains || [];
+    if (!brand.candidateDomains.some((item) => String(item) === String(domain._id))) {
+      brand.candidateDomains.push(domain._id);
+    }
     brand.updatedBy = req.user?._id || null;
 
     await domain.save();
@@ -348,7 +388,7 @@ export const assignDomainToBrand = async (req, res) => {
     });
 
     return res.status(200).json({
-      message: "Domain assigned to brand successfully.",
+      message: "Domain added to brand successfully.",
       domain: updatedDomain,
       brand: updatedBrand
     });
@@ -386,8 +426,23 @@ export const unassignDomainFromBrand = async (req, res) => {
 
     const brand = await Brand.findById(domain.assignedBrand);
 
-    if (brand && String(brand.activeDomain) === String(domain._id)) {
-      brand.activeDomain = null;
+    if (brand) {
+      brand.candidateDomains = (brand.candidateDomains || []).filter(
+        (item) => String(item) !== String(domain._id)
+      );
+
+      if (brand.activeDomain && String(brand.activeDomain) === String(domain._id)) {
+        const nextActiveId = brand.candidateDomains[0] || null;
+        brand.activeDomain = nextActiveId;
+
+        if (nextActiveId) {
+          await Domain.findByIdAndUpdate(nextActiveId, {
+            status: "assigned",
+            updatedBy: req.user?._id || null
+          });
+        }
+      }
+
       brand.updatedBy = req.user?._id || null;
       await brand.save();
     }
@@ -457,12 +512,6 @@ export const replaceBrandDomain = async (req, res) => {
       });
     }
 
-    if (newDomain.assignedBrand || newDomain.status !== "available") {
-      return res.status(400).json({
-        message: "Replacement domain must be available and unassigned."
-      });
-    }
-
     const brand = await Brand.findById(currentDomain.assignedBrand);
 
     if (!brand) {
@@ -471,8 +520,16 @@ export const replaceBrandDomain = async (req, res) => {
       });
     }
 
-    currentDomain.assignedBrand = null;
-    currentDomain.status = "blocked";
+    if (
+      newDomain.assignedBrand &&
+      String(newDomain.assignedBrand) !== String(brand._id)
+    ) {
+      return res.status(400).json({
+        message: "Replacement domain belongs to another brand."
+      });
+    }
+
+    currentDomain.status = "inactive";
     currentDomain.updatedBy = req.user?._id || null;
 
     newDomain.assignedBrand = brand._id;
@@ -480,8 +537,15 @@ export const replaceBrandDomain = async (req, res) => {
     newDomain.updatedBy = req.user?._id || null;
 
     brand.activeDomain = newDomain._id;
+    brand.candidateDomains = brand.candidateDomains || [];
+    if (!brand.candidateDomains.some((item) => String(item) === String(currentDomain._id))) {
+      brand.candidateDomains.push(currentDomain._id);
+    }
+    if (!brand.candidateDomains.some((item) => String(item) === String(newDomain._id))) {
+      brand.candidateDomains.push(newDomain._id);
+    }
     brand.updatedBy = req.user?._id || null;
-    brand.lastStatus = "unknown";
+    brand.lastStatus = "error";
     brand.lastCheckedAt = null;
 
     await currentDomain.save();
@@ -511,7 +575,7 @@ export const replaceBrandDomain = async (req, res) => {
     });
 
     return res.status(200).json({
-      message: "Domain replaced successfully.",
+      message: "Active domain updated successfully.",
       brand: updatedBrand,
       oldDomain: updatedCurrentDomain,
       newDomain: updatedNewDomain

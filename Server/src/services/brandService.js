@@ -30,6 +30,8 @@ export const findBrands = async (query = {}) => {
   const filters = buildBrandQuery(query);
 
   return Brand.find(filters)
+    .select("-lastStatus")
+    .populate("activeDomain", "domain protocol status")
     .populate("createdBy", "username email role")
     .populate("updatedBy", "username email role")
     .sort({ createdAt: -1 });

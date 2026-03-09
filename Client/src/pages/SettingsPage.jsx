@@ -10,6 +10,11 @@ function SettingsPage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState(0);
+  const [syncSummary, setSyncSummary] = useState(null);
+  const [syncError, setSyncError] = useState("");
+  const [syncMessage, setSyncMessage] = useState("");
   const [pageError, setPageError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -74,6 +79,33 @@ function SettingsPage() {
     }
   };
 
+  const handleSync = async () => {
+    setSyncing(true);
+    setSyncError("");
+    setSyncMessage("");
+    setSyncSummary(null);
+    setSyncProgress(12);
+
+    const progressTimer = setInterval(() => {
+      setSyncProgress((prev) => (prev >= 85 ? prev : prev + 7));
+    }, 250);
+
+    try {
+      const data = await settingsService.syncCheckerDomains();
+      setSyncProgress(100);
+      setSyncSummary(data?.summary || null);
+      setSyncMessage(data?.message || "Sync completed.");
+    } catch (error) {
+      setSyncProgress(0);
+      setSyncError(error?.response?.data?.message || "Sync failed.");
+    } finally {
+      clearInterval(progressTimer);
+      setTimeout(() => {
+        setSyncing(false);
+      }, 350);
+    }
+  };
+
   return (
     <div>
       <div className="page-header">
@@ -134,6 +166,61 @@ function SettingsPage() {
               </div>
             </form>
           )}
+        </div>
+
+        <div className="form-card">
+          <h3 className="section-title">Sync</h3>
+          <p className="muted-text">
+            Sync brands and domains from external checker API. Missing brands/domains are added, and domains not found in API are removed.
+          </p>
+
+          <div className="sync-actions">
+            <button className="btn btn-primary" onClick={handleSync} disabled={syncing}>
+              {syncing ? "Syncing..." : "Run Sync Now"}
+            </button>
+          </div>
+
+          <div className="sync-progress-wrap">
+            <div className="sync-progress-track">
+              <div
+                className={`sync-progress-fill ${syncing ? "syncing" : ""}`}
+                style={{ width: `${syncProgress}%` }}
+              />
+            </div>
+            <small>{syncing ? `Sync in progress... ${syncProgress}%` : `Progress: ${syncProgress}%`}</small>
+          </div>
+
+          {syncError ? <div className="error-box">{syncError}</div> : null}
+          {syncMessage ? <div className="info-box">{syncMessage}</div> : null}
+
+          {syncSummary ? (
+            <div className="sync-stats">
+              <div className="sync-stat-item">
+                <small>API Records</small>
+                <strong>{syncSummary.totalFromApi}</strong>
+              </div>
+              <div className="sync-stat-item">
+                <small>Valid Domains</small>
+                <strong>{syncSummary.validItems}</strong>
+              </div>
+              <div className="sync-stat-item">
+                <small>Brands Added</small>
+                <strong>{syncSummary.brandsAdded}</strong>
+              </div>
+              <div className="sync-stat-item">
+                <small>Domains Added</small>
+                <strong>{syncSummary.domainsAdded}</strong>
+              </div>
+              <div className="sync-stat-item">
+                <small>Domains Updated</small>
+                <strong>{syncSummary.domainsUpdated}</strong>
+              </div>
+              <div className="sync-stat-item">
+                <small>Domains Removed</small>
+                <strong>{syncSummary.domainsRemoved}</strong>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

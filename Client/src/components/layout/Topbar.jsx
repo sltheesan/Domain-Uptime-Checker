@@ -1,7 +1,18 @@
 import { useAuth } from "../../hooks/useAuth";
 
+const getInitials = (value = "") => {
+  const words = String(value).trim().split(/\s+/).filter(Boolean);
+
+  if (!words.length) return "U";
+  if (words.length === 1) return words[0][0]?.toUpperCase() || "U";
+
+  return `${words[0][0] || ""}${words[1][0] || ""}`.toUpperCase();
+};
+
 function Topbar() {
   const { user, logout } = useAuth();
+  const displayName = user?.username || "User";
+  const initials = getInitials(displayName);
 
   return (
     <header className="topbar">
@@ -12,8 +23,13 @@ function Topbar() {
 
       <div className="topbar-right">
         <div className="user-chip">
-          <span>{user?.username}</span>
-          <small>{user?.role}</small>
+          <div className="user-chip-avatar" aria-hidden="true">
+            {initials}
+          </div>
+          <div className="user-chip-meta">
+            <span>{displayName}</span>
+            <small>{user?.role}</small>
+          </div>
         </div>
         <button className="btn btn-secondary" onClick={logout}>
           Logout

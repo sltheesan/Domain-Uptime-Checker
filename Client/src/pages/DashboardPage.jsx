@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import DashboardStatCard from "../components/dashboard/DashboardStatCard";
 import BrandMonitorCard from "../components/dashboard/BrandMonitorCard";
 import { monitoringService } from "../features/monitoring/monitoringService";
+import { domainService } from "../features/domains/domainService";
 import { useAuth } from "../hooks/useAuth";
 import { useSocket } from "../hooks/useSocket";
 
@@ -21,6 +22,7 @@ function DashboardPage() {
   const [pageError, setPageError] = useState("");
   const [search, setSearch] = useState("");
   const [running, setRunning] = useState(false);
+  const [availableDomains, setAvailableDomains] = useState([]);
 
   const loadDashboard = async () => {
     try {
@@ -46,7 +48,17 @@ function DashboardPage() {
 
   useEffect(() => {
     loadDashboard();
+    loadAvailableDomains();
   }, []);
+
+  const loadAvailableDomains = async () => {
+    try {
+      const data = await domainService.getAvailableDomains();
+      setAvailableDomains(data.domains || []);
+    } catch {
+      setAvailableDomains([]);
+    }
+  };
 
   useEffect(() => {
     if (!socket) return;
@@ -87,6 +99,10 @@ function DashboardPage() {
     }
   };
 
+  const handleDomainChanged = async () => {
+    await Promise.all([loadDashboard(), loadAvailableDomains()]);
+  };
+
   return (
     <div>
       <div className="page-header">
@@ -110,7 +126,7 @@ function DashboardPage() {
       <div className="stats-grid">
         <DashboardStatCard title="Total Brands" value={summary.totalBrands} subtitle="Configured in the system" />
         <DashboardStatCard title="Healthy" value={summary.healthyCount} subtitle="Currently marked live" />
-        <DashboardStatCard title="Attention Needed" value={summary.blockedCount} subtitle="Blocked, dead, timeout, or error" />
+        <DashboardStatCard title="Attention Needed" value={summary.blockedCount} subtitle="Blocked, dead, or error" />
         <DashboardStatCard title="Monitoring Enabled" value={summary.monitoringEnabledCount} subtitle="Ready for interval checks" />
       </div>
 
@@ -136,7 +152,13 @@ function DashboardPage() {
         ) : (
           <div className="monitor-grid">
             {filteredBrands.map((brand) => (
-              <BrandMonitorCard key={brand._id} brand={brand} />
+              <BrandMonitorCard
+                key={brand._id}
+                brand={brand}
+                canManage={canManage}
+                availableDomains={availableDomains}
+                onDomainChanged={handleDomainChanged}
+              />
             ))}
           </div>
         )}

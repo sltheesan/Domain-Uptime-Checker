@@ -8,6 +8,7 @@ import DomainsPage from "../pages/DomainsPage";
 import UsersPage from "../pages/UsersPage";
 import SettingsPage from "../pages/SettingsPage";
 import NotFoundPage from "../pages/NotFoundPage";
+import MobileViewPage from "../pages/MobileViewPage";
 import ProtectedRoute from "../components/layout/ProtectedRoute";
 import AppLayout from "../components/layout/AppLayout";
 
@@ -27,6 +28,10 @@ export const router = createBrowserRouter([
       {
         element: <ProtectedRoute />,
         children: [
+          {
+            path: "mobile-view",
+            element: <MobileViewPage />
+          },
           {
             element: <AppLayout />,
             children: [

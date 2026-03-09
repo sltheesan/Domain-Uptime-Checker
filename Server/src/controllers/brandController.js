@@ -313,7 +313,7 @@ export const getDashboardSummary = async (req, res) => {
     const totalBrands = brands.length;
     const healthyCount = brands.filter((b) => b.lastStatus === "live").length;
     const blockedCount = brands.filter((b) =>
-      ["blocked", "dead", "error", "timeout"].includes(b.lastStatus)
+      ["blocked", "dead", "error"].includes(b.lastStatus)
     ).length;
     const monitoringEnabledCount = brands.filter(
       (b) => b.monitoringEnabled

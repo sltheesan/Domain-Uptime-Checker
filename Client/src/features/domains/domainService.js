@@ -31,6 +31,11 @@ export const domainService = {
     return response.data;
   },
 
+  async addDomainToBrand(domainId, brandId) {
+    const response = await api.patch(`/domains/${domainId}/assign`, { brandId });
+    return response.data;
+  },
+
   async unassignDomainFromBrand(domainId) {
     const response = await api.patch(`/domains/${domainId}/unassign`);
     return response.data;
@@ -39,6 +44,13 @@ export const domainService = {
   async replaceDomain(currentDomainId, newDomainId) {
     const response = await api.patch(`/domains/${currentDomainId}/replace`, {
       newDomainId
+    });
+    return response.data;
+  },
+
+  async setActiveDomain(currentActiveDomainId, newActiveDomainId) {
+    const response = await api.patch(`/domains/${currentActiveDomainId}/replace`, {
+      newDomainId: newActiveDomainId
     });
     return response.data;
   },

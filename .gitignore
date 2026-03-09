@@ -104,6 +104,8 @@ lib-cov
 
 # ================================
 
+.vite/
+**/.vite/
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 

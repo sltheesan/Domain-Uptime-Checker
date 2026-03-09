@@ -6,7 +6,7 @@ export const classifyMonitoringResult = ({
   const text = `${errorMessage} ${content}`.toLowerCase();
 
   if (text.includes("timeout")) {
-    return "timeout";
+    return "error";
   }
 
   if (
@@ -40,5 +40,5 @@ export const classifyMonitoringResult = ({
     return "error";
   }
 
-  return "unknown";
+  return "error";
 };

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { brandService } from "../features/brands/brandService";
 import { useAuth } from "../hooks/useAuth";
+import BrandBadge from "../components/common/BrandBadge";
 
 function BrandsPage() {
   const { user } = useAuth();
@@ -190,7 +191,6 @@ function BrandsPage() {
                 <th>Brand</th>
                 <th>Code</th>
                 <th>Active Domain</th>
-                <th>Status</th>
                 <th>Monitoring</th>
                 <th>Actions</th>
               </tr>
@@ -199,13 +199,10 @@ function BrandsPage() {
               {brands.map((brand) => (
                 <tr key={brand._id}>
                   <td>{brand.name}</td>
-                  <td>{brand.code}</td>
-                  <td>{brand.activeDomain?.domain || "-"}</td>
                   <td>
-                    <span className={`status-pill ${brand.lastStatus}`}>
-                      {brand.lastStatus}
-                    </span>
+                    <BrandBadge code={brand.code} />
                   </td>
+                  <td>{brand.activeDomain?.domain || "-"}</td>
                   <td>
                     <span className={`status-pill ${brand.monitoringEnabled ? "live" : "blocked"}`}>
                       {brand.monitoringEnabled ? "Enabled" : "Disabled"}

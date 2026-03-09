@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import Brand from "../models/Brand.js";
 import { getDashboardData, getMonitoringHistoryByBrand, monitorSingleBrand } from "../services/monitoringService.js";
 import { runMonitorJob } from "../jobs/monitorJob.js";
+import { resolveMobileVisitUrl } from "../services/screenshotService.js";
 
 export const getMonitoringDashboard = async (req, res) => {
   try {
@@ -76,6 +77,43 @@ export const getBrandMonitoringHistory = async (req, res) => {
     console.error("getBrandMonitoringHistory error:", error);
     return res.status(500).json({
       message: "Failed to fetch monitoring history."
+    });
+  }
+};
+
+export const resolveVisitUrl = async (req, res) => {
+  try {
+    const { url } = req.query || {};
+
+    if (!url) {
+      return res.status(400).json({ message: "url query is required." });
+    }
+
+    let parsed;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return res.status(400).json({ message: "Invalid URL." });
+    }
+
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      return res.status(400).json({ message: "Only http/https URLs are allowed." });
+    }
+
+    const resolved = await resolveMobileVisitUrl({
+      url: parsed.toString(),
+      timeoutMs: 12000
+    });
+
+    return res.status(200).json({
+      originalUrl: parsed.toString(),
+      finalUrl: resolved.finalUrl,
+      mobileUaUsed: true
+    });
+  } catch (error) {
+    console.error("resolveVisitUrl error:", error);
+    return res.status(500).json({
+      message: "Failed to resolve mobile visit URL."
     });
   }
 };
