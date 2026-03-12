@@ -9,13 +9,30 @@ const getInitials = (value = "") => {
   return `${words[0][0] || ""}${words[1][0] || ""}`.toUpperCase();
 };
 
-function Topbar() {
+function Topbar({ onMenuClick }) {
   const { user, logout } = useAuth();
   const displayName = user?.username || "User";
   const initials = getInitials(displayName);
 
   return (
     <header className="topbar">
+      <button
+        type="button"
+        className="topbar-menu-btn"
+        onClick={onMenuClick}
+        aria-label="Toggle navigation menu"
+      >
+        <svg
+          className="topbar-menu-icon"
+          viewBox="0 0 24 24"
+          width="20"
+          height="20"
+          aria-hidden="true"
+        >
+          <path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" strokeWidth="2" />
+        </svg>
+      </button>
+
       <div>
         <h1 className="topbar-title">Brand Domain Monitor</h1>
         <p className="topbar-subtitle">Monitor active domains and screenshots</p>
